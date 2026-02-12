@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  cache-server:
+    build: .
+    container_name: file-caching-server
+    ports:
+      - "9876:9876"
+    volumes:
+      - cache-data:/app/cache
+    environment:
+      - LOG_LEVEL=info
+      - CACHE_DIR=/app/cache
+      - PORT=9876
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:9876/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  cache-data:
+    driver: local

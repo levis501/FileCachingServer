@@ -1,0 +1,51 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json? # keep if you prefer deterministic installs; remove this line to ignore
+
+# Runtime / build
+dist/
+build/
+coverage/
+.nyc_output/
+.tmp/
+tmp/
+logs/
+*.log
+
+# Environment / secrets
+.env
+.env.*
+.env.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+.history/
+
+# Python (in case some tooling uses it)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Project runtime cache (do NOT commit cached responses)
+/cache/
+cache/
+
+# Misc
+.sass-cache/
+.parcel-cache/
+.pnp/
+.pnp.js
+.eslintcache
+
+# End of file
