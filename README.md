@@ -59,6 +59,34 @@ npm start
 
 The server listens on port **9876** by default.
 
+### OpenAPI/Swagger Specification
+
+A complete OpenAPI 3.0.3 specification is available for formal API documentation and integration:
+
+- **Specification File**: `openapi.yaml` (in repository root)
+- **View Online**: Paste the raw file URL into [Swagger Editor](https://editor.swagger.io/)
+- **Local Viewing**: Use [Swagger UI](https://swagger.io/tools/swagger-ui/), [ReDoc](https://redocly.github.io/redoc/), or VS Code OpenAPI extensions
+
+The OpenAPI specification provides:
+- Complete schema definitions for all requests and responses
+- Detailed error response documentation
+- Interactive API testing capabilities
+- Support for client SDK generation in multiple languages
+
+**Generate Client SDKs:**
+```bash
+# TypeScript
+npx @openapitools/openapi-generator-cli generate -g typescript-fetch -i openapi.yaml -o ./generated/typescript
+
+# Python
+npx @openapitools/openapi-generator-cli generate -g python -i openapi.yaml -o ./generated/python
+
+# Go
+npx @openapitools/openapi-generator-cli generate -g go -i openapi.yaml -o ./generated/go
+```
+
+### Quick Reference
+
 ### GET /GetURL
 
 Fetch a URL through the caching proxy.

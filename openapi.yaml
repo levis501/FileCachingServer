@@ -1,0 +1,361 @@
+openapi: 3.0.3
+info:
+  title: File Caching Server
+  version: 1.0.0
+  description: |
+    A high-performance HTTP proxy with persistent file-based caching.
+
+    This server transparently caches web responses and serves them instantly on subsequent requests.
+    Supports any HTTP/HTTPS resource including JSON APIs, HTML pages, images, and binary files.
+
+    **Key Features:**
+    - Persistent file-based cache (survives restarts)
+    - Transparent content-type proxying
+    - SHA-256 based deduplication
+    - 30-second fetch timeout
+    - Only caches successful responses (2xx status codes)
+    - Maximum 5 redirect following
+  contact:
+    name: API Support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:9876
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server (customize as needed)
+
+tags:
+  - name: Caching
+    description: Cache operations for fetching and listing URLs
+  - name: Health
+    description: Server health and monitoring
+
+paths:
+  /GetURL:
+    get:
+      tags:
+        - Caching
+      summary: Fetch or retrieve cached URL
+      description: |
+        Fetch a URL through the caching proxy. Returns cached content if available,
+        otherwise fetches from the internet and caches the response.
+
+        **Caching Behavior:**
+        - Cache hit: Returns instantly from local cache
+        - Cache miss: Fetches from internet, caches if 2xx status, then returns
+        - Only HTTP and HTTPS protocols are supported
+        - Only 2xx responses are cached (errors are not cached)
+        - Content-Type header is preserved from the original response
+
+        **Constraints:**
+        - Fetch timeout: 30 seconds
+        - Maximum redirects: 5
+        - Supported protocols: http://, https://
+      operationId: getURL
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL to fetch (must start with http:// or https://)
+          schema:
+            type: string
+            format: uri
+          examples:
+            json_api:
+              value: https://api.github.com/users/octocat
+              summary: Fetch JSON API
+            html_page:
+              value: https://example.com
+              summary: Fetch HTML page
+            image:
+              value: https://httpbin.org/image/png
+              summary: Fetch image
+      responses:
+        '200':
+          description: |
+            Successfully retrieved content (from cache or internet).
+            Content-Type header matches the original resource.
+
+            Response can be any content type depending on the fetched URL:
+            - JSON APIs return application/json
+            - HTML pages return text/html
+            - Images return image/* types
+            - Binary files return application/octet-stream
+          headers:
+            Content-Type:
+              description: Original Content-Type from the proxied URL
+              schema:
+                type: string
+              examples:
+                json:
+                  value: application/json; charset=utf-8
+                html:
+                  value: text/html; charset=utf-8
+                image:
+                  value: image/png
+          content:
+            application/json:
+              schema:
+                type: object
+                description: JSON response from API endpoints
+              example:
+                login: octocat
+                id: 1
+                node_id: MDQ6VXNlcjE=
+                avatar_url: https://github.com/images/error/octocat_happy.gif
+                type: User
+                name: The Octocat
+                company: GitHub
+                blog: https://github.com/blog
+            text/html:
+              schema:
+                type: string
+                description: HTML content from web pages
+              example: |
+                <!doctype html>
+                <html>
+                <head>
+                    <title>Example Domain</title>
+                </head>
+                <body>
+                    <h1>Example Domain</h1>
+                    <p>This domain is for use in illustrative examples.</p>
+                </body>
+                </html>
+            text/plain:
+              schema:
+                type: string
+                description: Plain text content
+              example: Plain text response content
+            image/png:
+              schema:
+                type: string
+                format: binary
+                description: Binary image data
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                description: Generic binary content
+        '400':
+          description: Invalid request (missing or malformed URL parameter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                missing_url:
+                  summary: Missing URL parameter
+                  value:
+                    error: Missing required parameter
+                    message: URL parameter is required
+                    example: /GetURL?url=https://example.com
+                invalid_url:
+                  summary: Invalid URL format
+                  value:
+                    error: Invalid URL
+                    message: Invalid URL
+                    url: not-a-valid-url
+        '502':
+          description: Failed to fetch URL (network error, timeout, or upstream failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FetchError'
+              examples:
+                network_timeout:
+                  summary: Request timeout (30 seconds)
+                  value:
+                    error: Failed to fetch URL
+                    message: The operation was aborted due to timeout
+                    url: https://slow-server.example.com/api
+                dns_failure:
+                  summary: DNS resolution failure
+                  value:
+                    error: Failed to fetch URL
+                    message: getaddrinfo ENOTFOUND non-existent-domain.example.com
+                    url: https://non-existent-domain.example.com
+                upstream_error:
+                  summary: Upstream server returned error status
+                  value:
+                    error: Upstream error
+                    message: Received 404 from upstream server
+                    url: https://api.example.com/not-found
+                    statusCode: 404
+
+  /Contents:
+    get:
+      tags:
+        - Caching
+      summary: List all cached URLs
+      description: |
+        Returns a JSON array of all URLs currently stored in the cache,
+        along with their content sizes in bytes.
+
+        This operation is fast as it reads from the cache index without
+        loading the actual cached content.
+      operationId: listContents
+      responses:
+        '200':
+          description: List of cached URLs with sizes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CachedItem'
+              examples:
+                with_cache:
+                  summary: Cache with multiple entries
+                  value:
+                    - url: https://api.github.com/users/octocat
+                      byteSize: 1427
+                    - url: https://example.com
+                      byteSize: 1256
+                    - url: https://httpbin.org/json
+                      byteSize: 429
+                empty_cache:
+                  summary: Empty cache
+                  value: []
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: |
+        Returns the current health status of the server.
+
+        Used by monitoring systems and Docker health checks to verify
+        the server is running and responsive.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy and operational
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: healthy
+                uptime: 12345.67
+                cacheDir: /app/cache
+                port: 9876
+
+components:
+  schemas:
+    CachedItem:
+      type: object
+      required:
+        - url
+        - byteSize
+      properties:
+        url:
+          type: string
+          format: uri
+          description: The cached URL
+          example: https://api.github.com/users/octocat
+        byteSize:
+          type: integer
+          minimum: 0
+          description: Size of the cached content in bytes
+          example: 1427
+
+    ValidationError:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error category
+          example: Missing required parameter
+        message:
+          type: string
+          description: Detailed error message
+          example: URL parameter is required
+        example:
+          type: string
+          description: Example of correct usage (only present for missing parameter error)
+          example: /GetURL?url=https://example.com
+        url:
+          type: string
+          description: The invalid URL that was provided (only present for invalid URL error)
+          example: not-a-valid-url
+
+    FetchError:
+      type: object
+      required:
+        - error
+        - message
+        - url
+      properties:
+        error:
+          type: string
+          description: Error category (e.g., "Failed to fetch URL" or "Upstream error")
+          example: Failed to fetch URL
+        message:
+          type: string
+          description: Detailed error message
+          example: The operation was aborted due to timeout
+        url:
+          type: string
+          format: uri
+          description: The URL that failed to fetch
+          example: https://slow-server.example.com/api
+        statusCode:
+          type: integer
+          minimum: 100
+          maximum: 599
+          description: HTTP status code from upstream server (only present for upstream errors)
+          example: 404
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - uptime
+        - cacheDir
+        - port
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+          description: Server health status (always "healthy" if responding)
+          example: healthy
+        uptime:
+          type: number
+          format: double
+          minimum: 0
+          description: Server uptime in seconds
+          example: 12345.67
+        cacheDir:
+          type: string
+          description: Absolute path to the cache directory
+          example: /app/cache
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+          description: Port the server is listening on
+          example: 9876
+
+    InternalError:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error category
+          example: Internal server error
+        message:
+          type: string
+          description: Error message
+          example: An unexpected error occurred
